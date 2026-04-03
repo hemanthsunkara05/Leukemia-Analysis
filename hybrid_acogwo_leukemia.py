@@ -1,13 +1,11 @@
-from pyexpat import model
-from quopri import decode
+
 import numpy as np
 import pandas as pd
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.impute import SimpleImputer
-from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.model_selection import cross_val_score, StratifiedKFold, train_test_split
 from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix, roc_auc_score
 
@@ -142,7 +140,9 @@ class GWOOptimizer:
 
         best = wolves[np.argmax(scores)]
         return decode(best)
-PROJECT_SIGNATURE = "HS_ACOGWO_LEUKEMIA_V1"
+    
+
+PROJECT_SIGNATURE = "Hemanth_ACOGWO_LEUKEMIA_V1"
 
 
 def hybrid_acogwo_pipeline(X, y):
@@ -160,33 +160,34 @@ def hybrid_acogwo_pipeline(X, y):
     gwo = GWOOptimizer()
     best_C, best_gamma = gwo.optimize(X_selected, y)
 
+    X_train, X_test, y_train, y_test = train_test_split(
+    X_selected, y, test_size=0.2, random_state=42, stratify=y)
     print("Training final classifier...")
     model = SVC(C=best_C, gamma=best_gamma, probability=True)
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    scores = cross_val_score(model, X_selected, y, cv=cv)
+    scores = cross_val_score(model, X_train, y_train, cv=cv)
 
-    print("10-Fold Accuracy:", scores.mean())
-    model.fit(X_selected, y)
+    print("5-Fold CV Accuracy:", round(scores.mean(), 4))
+    model.fit(X_train, y_train)
 
-    y_pred = model.predict(X_selected)
+    y_pred = model.predict(X_test)
 
     # Confusion matrix
-    tn, fp, fn, tp = confusion_matrix(y, y_pred).ravel()
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
 
     sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
     specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
 
     # ROC-AUC
-    y_prob = model.predict_proba(X_selected)[:, 1]
-    roc_auc = roc_auc_score(y, y_prob)
+    y_prob = model.predict_proba(X_test)[:, 1]
+    roc_auc = roc_auc_score(y_test, y_prob)
 
     print("Sensitivity:", round(sensitivity, 4))
     print("Specificity:", round(specificity, 4))
     print("ROC-AUC:", round(roc_auc, 4))
 
-    model.fit(X_selected, y)
 
 
     print("Generating research figures...")
